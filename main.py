@@ -6,7 +6,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.docstore.document import Document
 import os
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import google.generativeai as genai
@@ -29,23 +28,6 @@ vector_store_initialized = False
 initialization_error = None
 
 
-def extract_text_with_pages(pdf_path):
-    documents = []
-    try:
-        with open(pdf_path, 'rb') as f:
-            pdf_reader = PdfReader(f)
-            for i, page in enumerate(pdf_reader.pages):
-                text = page.extract_text()
-                if text:
-                    documents.append(Document(
-                        page_content=text,
-                        metadata={"page_number": i + 1}
-                    ))
-    except Exception:
-        pass
-    return documents
-
-
 def initialize_vector_store():
     global vector_store_initialized, initialization_error
     try:
@@ -53,22 +35,56 @@ def initialize_vector_store():
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(f"PDF file not found at {pdf_path}")
 
-        docs = extract_text_with_pages(pdf_path)
-        if not docs:
-            raise ValueError("No extractable text in PDF")
+        pages = extract_pages_from_pdf(pdf_path)
+        if not pages:
+            raise ValueError("PDF text extraction returned empty content")
 
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=200)
-        split_docs = text_splitter.split_documents(docs)
-        if not split_docs:
-            raise ValueError("No valid text chunks created")
+        text_chunks = []
+        for page_num, page_text in pages:
+            if not page_text.strip():
+                continue
+            splitter = RecursiveCharacterTextSplitter(
+                chunk_size=2000,
+                chunk_overlap=200,
+                length_function=len
+            )
+            for chunk in splitter.split_text(page_text):
+                text_chunks.append(f"[Page {page_num}] {chunk}")
+
+        if not text_chunks:
+            raise ValueError("No valid text chunks could be created")
 
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        vector_store = FAISS.from_documents(split_docs, embedding=embeddings)
+        dummy_embedding = embeddings.embed_query("test")
+        if not dummy_embedding:
+            raise ValueError("Failed to create embeddings")
+
+        vector_store = FAISS.from_texts(
+            texts=text_chunks,
+            embedding=embeddings
+        )
         vector_store.save_local("faiss_index")
         vector_store_initialized = True
     except Exception as e:
         initialization_error = str(e)
         raise
+
+
+def extract_pages_from_pdf(pdf_path):
+    pages = []
+    try:
+        with open(pdf_path, 'rb') as f:
+            pdf_reader = PdfReader(f)
+            for i, page in enumerate(pdf_reader.pages):
+                try:
+                    text = page.extract_text()
+                    if text:
+                        pages.append((i + 1, text))
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return pages
 
 
 @asynccontextmanager
@@ -125,39 +141,39 @@ async def ask_question(request: QuestionRequest):
                     "status": "error",
                     "answer": f"Cannot process questions: {initialization_error}"
                 }
-            raise HTTPException(status_code=400, detail="PDF processing not completed yet")
+            raise HTTPException(
+                status_code=400,
+                detail="PDF processing not completed yet"
+            )
 
         embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
         new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
         docs = new_db.similarity_search(request.question)
-
         chain = get_conversational_chain()
         response = chain.invoke({
             "input_documents": docs,
             "question": request.question
         })
-
-        pages = sorted({doc.metadata.get("page_number") for doc in docs if "page_number" in doc.metadata})
-        page_info = f"\n\n\ud83d\udcc4 Referenced page(s): {', '.join(map(str, pages))}" if pages else ""
-
         return {
             "status": "success",
-            "answer": response["output_text"] + page_info
+            "answer": response["output_text"]
         }
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing question: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing question: {str(e)}"
+        )
 
 
 def get_conversational_chain():
     prompt_template = """
-    Answer the question using the context below. If unsure, say you don't know.
+    Use the context below to answer the question. Reference the page number if available.
     Context: {context}
     Question: {question}
     Answer:
     """
     model = ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro-latest",
+        model="gemini-2.0-flash",
         temperature=0.3
     )
     prompt = PromptTemplate(
