@@ -1,165 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Chat Assistant</title>
-    <style>
-        /* Body settings for minimal, empty background */
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: transparent; /* Transparent background */
-            height: 100vh;
-            display: flex;
-            justify-content: flex-end; /* Align to bottom-right */
-            align-items: flex-end;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PDF Chat Assistant</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: transparent;
+      height: 100vh;
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-end;
+    }
 
-        /* Chat container (docked to bottom-right) */
-        #chatContainer {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            max-width: 300px;
-            background-color: rgba(255, 255, 255, 0.95); /* Semi-transparent background */
-            border: 1px solid rgba(200, 200, 200, 0.8);
-            border-radius: 15px;
-            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
-            padding: 15px;
-            z-index: 1000;
-        }
+    #chatContainer {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 360px;
+      background-color: transparent;
+      border-radius: 18px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
-        /* Chat response area */
-        #chatbotResponse {
-            margin-top: 10px;
-            max-height: 300px;
-            overflow-y: auto;
-            padding-right: 5px;
-        }
+    #chatbotResponse {
+      position: relative;
+      flex: 1;
+      max-height: 350px;
+      overflow-y: auto;
+      border-radius: 18px 18px 0 0;
+    }
 
-        /* User input and send button */
-        .input-section {
-            display: flex;
-            margin-top: 10px;
-        }
+    .chat-bg {
+      position: absolute;
+      inset: 0;
+      background-color: transparent; /* Removed blur and made fully transparent */
+      z-index: 0;
+      border-radius: 18px 18px 0 0;
+    }
 
-        #userInput {
-            flex: 1;
-            padding: 8px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            font-size: 14px;
-            background-color: rgba(240, 240, 240, 0.9);
-        }
+    .chat-content {
+      position: relative;
+      z-index: 1;
+      padding: 20px;
+    }
 
-        button {
-            padding: 8px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-left: 10px;
-        }
+    .input-section {
+      display: flex;
+      align-items: center;
+      background-color: #f4f4f4;
+      border-radius: 0 0 18px 18px;
+      padding: 8px 16px;
+    }
 
-        button:hover {
-            background-color: #0056b3;
-        }
+    #userInput {
+      flex: 1;
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 14px;
+      color: #222;
+      font-weight: 500;
+    }
 
-        /* Chat bubbles */
-        .chat-bubble {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 10px;
-            word-wrap: break-word;
-        }
+    #userInput::placeholder {
+      color: #999;
+    }
 
-        .chat-bubble.user {
-            justify-content: flex-end;
-        }
+    #sendBtn {
+      background: none;
+      border: none;
+      color: #777;
+      font-size: 18px;
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
 
-        .chat-bubble.bot {
-            justify-content: flex-start;
-        }
+    #sendBtn:hover {
+      color: #333;
+    }
 
-        .chat-bubble .text {
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 14px;
-            line-height: 1.5;
-        }
+    .chat-bubble {
+      display: flex;
+      margin-bottom: 12px;
+    }
 
-        .chat-bubble.user .text {
-            background-color: rgba(220, 248, 198, 0.9);
-            color: #333;
-        }
+    .chat-bubble.user {
+      justify-content: flex-end;
+    }
 
-        .chat-bubble.bot .text {
-            background-color: rgba(0, 122, 255, 0.9);
-            color: white;
-        }
-    </style>
+    .chat-bubble.bot {
+      justify-content: flex-start;
+    }
+
+    .chat-bubble .text {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      background-color: #f5f5f5;
+      color: #222;
+      line-height: 1.5;
+      font-weight: 500;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    .chat-bubble.user .text {
+      background-color: #dcf8c6;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    ul li {
+      margin-bottom: 6px;
+    }
+  </style>
 </head>
 <body>
-    <div id="chatContainer">
-        <div id="chatbotResponse"></div>
-        <div class="input-section">
-            <input type="text" id="userInput" placeholder="Ask about the PDF content...">
-            <button id="sendBtn">Send</button>
-        </div>
+  <div id="chatContainer">
+    <div id="chatbotResponse">
+      <div class="chat-bg"></div>
+      <div class="chat-content" id="chatContent"></div>
     </div>
+    <div class="input-section">
+      <input type="text" id="userInput" placeholder="Ask about the document..." />
+      <button id="sendBtn">&#10148;</button>
+    </div>
+  </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const chatInput = document.getElementById('userInput');
-            const sendBtn = document.getElementById('sendBtn');
-            const chatMessages = document.getElementById('chatbotResponse');
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const chatInput = document.getElementById('userInput');
+      const sendBtn = document.getElementById('sendBtn');
+      const chatMessages = document.getElementById('chatContent');
 
-            sendBtn.addEventListener('click', sendMessage);
-            chatInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    sendMessage();
-                }
-            });
+      chatInput.focus();
 
-            async function sendMessage() {
-                const question = chatInput.value.trim();
-                if (!question) return;
+      sendBtn.addEventListener('click', sendMessage);
+      chatInput.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') sendMessage();
+      });
 
-                addMessage(question, 'user');
-                chatInput.value = '';
+      function isGreeting(message) {
+        const greetings = ['hi', 'hello', 'hlo', 'hey', 'yo'];
+        return greetings.includes(message.toLowerCase().trim());
+      }
 
-                try {
-                    const response = await fetch('/ask', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ question })
-                    });
+      function showTypingIndicator() {
+        const typing = document.createElement('div');
+        typing.className = 'chat-bubble bot';
+        typing.id = 'typing-indicator';
+        typing.innerHTML = `<div class="text">Typing...</div>`;
+        chatMessages.appendChild(typing);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
 
-                    if (!response.ok) {
-                        throw new Error(await response.text());
-                    }
+      function removeTypingIndicator() {
+        const typing = document.getElementById('typing-indicator');
+        if (typing) typing.remove();
+      }
 
-                    const data = await response.json();
-                    addMessage(data.answer || "Sorry, I couldn't process your request.", 'bot');
+      async function sendMessage() {
+        const question = chatInput.value.trim();
+        if (!question) return;
 
-                } catch (error) {
-                    console.error('Error:', error);
-                    addMessage("Sorry, an error occurred. Please try again.", 'bot');
-                }
-            }
+        addMessage(question, 'user');
+        chatInput.value = '';
 
-            function addMessage(text, sender) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `chat-bubble ${sender}`;
-                messageDiv.innerHTML = `<div class="text">${text}</div>`;
-                chatMessages.appendChild(messageDiv);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }
-        });
-    </script>
+        if (isGreeting(question)) {
+          setTimeout(() => {
+            addMessage("Hi there! 👋 How can I assist you with the document?", 'bot');
+          }, 300);
+          return;
+        }
+
+        showTypingIndicator();
+
+        try {
+          const response = await fetch('/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question })
+          });
+
+          removeTypingIndicator();
+
+          if (!response.ok) throw new Error(await response.text());
+
+          const data = await response.json();
+          formatBotResponse(data.answer || "Sorry, I couldn't process that.");
+        } catch (err) {
+          console.error(err);
+          removeTypingIndicator();
+          addMessage("Oops! Something went wrong. Please try again.", 'bot');
+        }
+      }
+
+      function addMessage(text, sender) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `chat-bubble ${sender}`;
+        msgDiv.innerHTML = `<div class="text">${text}</div>`;
+        chatMessages.appendChild(msgDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      function formatBotResponse(text) {
+        const lines = text.split('\n').filter(l => l.trim() !== '');
+        if (lines.length === 1) {
+          addMessage(escapeHtml(lines[0]), 'bot');
+        } else {
+          const list = `<ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
+          addMessage(list, 'bot');
+        }
+      }
+
+      function escapeHtml(text) {
+        return text.replace(/[&<>"']/g, match => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        })[match]);
+      }
+    });
+  </script>
 </body>
 </html>
